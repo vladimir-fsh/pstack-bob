@@ -1,0 +1,6 @@
+# pstack-bob shared defaults. Project .pstack-bob/models overrides matching roles.
+# budget: large (xhigh)
+arena runners: gpt-6-astra, claude-opus-5-5-xhigh, grok-4.7-xhigh
+arena cross-judge pool: claude-opus-5-5-xhigh, grok-4.7-xhigh, gpt-6-astra
+architect runners: gpt-6-astra, claude-opus-5-5-xhigh, grok-4.7-xhigh
+interrogate reviewers: gpt-6-astra, claude-opus-5-5-xhigh, grok-4.7-xhigh

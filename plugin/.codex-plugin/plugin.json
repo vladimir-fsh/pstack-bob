@@ -1,0 +1,17 @@
+{
+  "name": "pstack-bob",
+  "version": "0.1.0",
+  "description": "pstack for Codex and Claude Code with independent cross-model reviews.",
+  "author": {
+    "name": "vladimir-fsh"
+  },
+  "repository": "https://github.com/vladimir-fsh/pstack-bob",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "pstack-bob",
+    "shortDescription": "pstack for Codex and Claude Code with independent cross-model reviews.",
+    "developerName": "vladimir-fsh",
+    "category": "Productivity"
+  }
+}

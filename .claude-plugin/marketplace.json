@@ -1,0 +1,13 @@
+{
+  "name": "pstack-bob",
+  "owner": {
+    "name": "vladimir-fsh"
+  },
+  "plugins": [
+    {
+      "name": "pstack-bob",
+      "source": "./plugin",
+      "description": "pstack workflows for Codex and Claude with independent multi-model reviews."
+    }
+  ]
+}
