@@ -5,10 +5,9 @@ Codex, where a review panel can include the other vendor's model. From Claude
 Code, GPT runs through Codex CLI. From Codex, Claude runs through Claude Code
 CLI.
 
-It is [michael-denyer/pstack-claude](https://github.com/michael-denyer/pstack-claude)
-at a pinned commit, plus a short list of edits. That port already translates
-pstack for both hosts and tracks Cursor's upstream, so this repository carries
-only the difference.
+`plugin/` started as [michael-denyer/pstack-claude](https://github.com/michael-denyer/pstack-claude)
+at commit `b1b9f18`, which had already translated pstack for both hosts. From
+there this repository merges Cursor's upstream itself.
 
 ## What it adds
 
@@ -29,7 +28,7 @@ named in the output. Its work never reruns on a host model under its name.
 `setup-pstack` changes any of this.
 
 The rules live in
-[external seats](overlay/skills/poteto-mode/references/external-seats.md).
+[external seats](plugin/skills/poteto-mode/references/external-seats.md).
 
 ## Install
 
@@ -58,25 +57,28 @@ External seats need the other CLI logged in: `codex login` for Claude Code,
 
 | Path | Purpose |
 | --- | --- |
-| `upstream.json` | The pinned commit of the port, and the folders left out |
-| `patches.json` | Edits to upstream text, each with its reason |
-| `overlay/` | Files added beside upstream's |
-| `VERSION` | This plugin's version |
-| `scripts/build.py` | Renders `plugin/` from the four above |
-| `plugin/` | The generated plugin both hosts install |
+| `plugin/` | The plugin both hosts install. This is the source; edit it directly |
+| `upstream.json` | The `cursor/plugins` commit last merged, and the upstream paths left out |
+| `substitutions.json` | Rewrites from Cursor's wording to this plugin's, plus Cursor terms to flag |
+| `scripts/sync.py` | Merges a newer upstream commit into `plugin/` |
 
-Each patch names an anchor sentence that must occur exactly once. When upstream
-rewords one, the build fails and names the rule.
+A sync translates each upstream file at the old pin and at the new commit, then
+merges the difference into the local file with a three-way merge. An edit made
+here survives unless upstream changed the same lines. Then the file is written
+with Git's conflict markers and listed in the report.
 
-A daily workflow moves the pin to upstream's `main`, renders again, and opens a
-pull request. A failed run means a patch needs rewording. The workflow needs
-"Allow GitHub Actions to create and approve pull requests" under the
-repository's Actions settings.
+A daily workflow runs the sync against upstream's `main` and opens a pull
+request with the report. It opens a draft when something needs a person: a
+conflict, a file both sides changed in incompatible ways, Cursor wording no rule
+covers, or a rule that matches nothing. Upstream commits that touch none of the
+carried files open nothing. The workflow needs "Allow GitHub Actions to create
+and approve pull requests" under the repository's Actions settings.
 
 ```bash
-python3 scripts/build.py            # render plugin/ from the pin
-python3 scripts/build.py --check    # fail when plugin/ is stale
-python3 scripts/build.py --ref main # move the pin and render
+python3 scripts/sync.py              # merge upstream's main into plugin/
+python3 scripts/sync.py --ref <sha>  # merge a specific commit
+python3 scripts/sync.py --check      # fail on unresolved conflicts
+python3 -m unittest discover -s tests
 ```
 
 Requires Git and Python 3.12 or later.

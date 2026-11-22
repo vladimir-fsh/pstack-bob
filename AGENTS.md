@@ -1,12 +1,20 @@
 # pstack-bob
 
-`plugin/` is generated. Change behavior in `patches.json` (edits to upstream
-text) or `overlay/` (files added beside it), then run `python3 scripts/build.py`
-and commit the result with the source change.
+`plugin/` is the source. Edit its files directly.
 
-Each `patches.json` rule names an anchor that must occur exactly once in its
-upstream file, so keep anchors short and literal, and give each rule a `why`.
-Prefer an `after` rule, which adds a sentence, over a `replace` rule.
+`scripts/sync.py` merges Cursor's upstream into it. It translates each upstream
+file with `substitutions.json` at the old pin and at the new commit, then merges
+the difference into the local file, so an edit here survives a sync unless
+upstream changed the same lines.
 
-Raise `VERSION` by hand for a change of ours. `scripts/build.py --ref main`
-raises it when it moves the pin.
+When a sync reports a conflict, the file holds Git's `<<<<<<< ours`,
+`=======`, and `>>>>>>> upstream` markers. Keep upstream's new meaning in this
+plugin's wording: Claude Code and Codex tool names, family model names, and
+external seats. `scripts/sync.py --check` fails while a marker remains.
+
+When a sync reports Cursor wording, add a rule to `substitutions.json` if the
+phrase will recur, or rewrite the sentence in `plugin/` if it will not. A rule
+that matches nothing upstream is stale: delete it.
+
+Raise the version in both `plugin/.claude-plugin/plugin.json` and
+`plugin/.codex-plugin/plugin.json` for a change of ours. A sync raises it.

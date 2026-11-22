@@ -95,8 +95,6 @@ Check whether the project already has a formal verification skill (a project ski
 
 ## Models
 
-Stamped from `plugins/pstack/models.json` (edit there, rerun `tools/generate.mjs`).
-
 - Available Claude models: `opus`, `fable`, `sonnet`, `haiku`
 - Default panel: `opus`, `fable`, `codex:sol`, `codex:astra`
 - Reasoning effort levels: `low`, `medium`, `high`, `xhigh`, `max`
