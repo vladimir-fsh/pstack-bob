@@ -1,13 +1,20 @@
-name: Check plugin
+name: Check
+
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
-  check:
+  generated:
+    name: plugin/ matches the pin
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m unittest discover -s tests -v
-      - run: python3 scripts/sync_upstream.py --check
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/build.py --check

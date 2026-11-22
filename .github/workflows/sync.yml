@@ -1,0 +1,45 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # A patch that no longer matches upstream fails here, and the failed run is the alert.
+      - name: Move the pin and render
+        run: python3 scripts/build.py --ref main
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            echo "Upstream has not moved."
+            exit 0
+          fi
+          commit=$(python3 -c 'import json; print(json.load(open("upstream.json"))["commit"][:7])')
+          upstream=$(python3 -c 'import json; print(json.load(open("upstream.json"))["version"])')
+          branch="sync/upstream-$commit"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "A pull request for $commit already exists."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -A
+          git commit -m "Sync upstream $upstream @ $commit"
+          git push origin "$branch"
+          gh pr create --title "Sync upstream $upstream @ $commit" \
+            --body "Moves the pin to michael-denyer/pstack-claude@$commit and renders plugin/ again. Every rule in patches.json still matched."
