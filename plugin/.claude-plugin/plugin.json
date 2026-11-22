@@ -1,10 +1,31 @@
 {
-  "name": "pstack-bob",
-  "version": "0.1.1",
-  "description": "pstack for Codex and Claude Code with independent cross-model reviews.",
+  "name": "pstack",
+  "displayName": "pstack (Claude Code port)",
+  "version": "1.0.0",
+  "description": "If you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence. Ported from cursor/plugins/pstack to Claude Code. Original pstack by Lauren Tan (poteto). Built from michael-denyer/pstack-claude with external seats: panels can run the other vendor's model through Codex CLI or Claude Code CLI. Upstream 0.9.146.",
   "author": {
-    "name": "vladimir-fsh"
+    "name": "Michael Denyer",
+    "url": "https://github.com/michael-denyer"
   },
+  "homepage": "https://github.com/vladimir-fsh/pstack-bob",
   "repository": "https://github.com/vladimir-fsh/pstack-bob",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "pstack",
+    "poteto-mode",
+    "workflow",
+    "principles",
+    "agent-style",
+    "subagents",
+    "unslop",
+    "claude-code",
+    "skills",
+    "tdd",
+    "code-review",
+    "parallel-agents",
+    "codex",
+    "opencode",
+    "gemini-cli",
+    "prime-agent"
+  ]
 }

@@ -1,82 +1,104 @@
 ---
 name: setup-pstack
-description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes an always-applied rule that overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
+description: Configure which models pstack uses per role. Detects available models and writes the current runtime's override sheet. Use for /setup-pstack, "configure pstack models", changing pstack's model choices, or turning the SessionStart hook on or off.
 ---
-
-Before following these instructions, read [the pstack-bob adapter](../../docs/harness/bob.md) once per session.
 
 # Setup pstack
 
-In Claude Code, read [the Claude Code adapter](../../docs/harness/claude-code.md) once per session before you follow this skill. It maps the Cursor names in pstack skills to Claude Code.
+On Codex, read the [platform mapping](../poteto-mode/references/codex-tools.md), including its per-skill notes, before following this skill.
 
-Write `~/.cursor/rules/pstack-models.mdc`, an always-applied rule that sets pstack's model per role.
+On GitHub Copilot, read the [platform mapping](../poteto-mode/references/copilot-tools.md), including its per-skill notes, before following this skill.
+
+On Muse, read the [platform mapping](../poteto-mode/references/muse-tools.md), including its per-skill notes, before following this skill.
+
+On Antigravity, read the [platform mapping](../poteto-mode/references/agy-tools.md), including its per-skill notes, before following this skill.
+
+Write the current runtime's per-role model override sheet. Each pstack skill names a default model inline; the override sheet adapts those defaults to the models you actually have access to.
+
+On any runtime other than Claude Code, read [Other runtimes](references/runtimes.md) first. Its table gives the sheet path, how the sheet loads, and how to list models, and your runtime's section says which steps change. The rest of this file describes Claude Code.
+
+On Claude Code the config directory is `$CLAUDE_CONFIG_DIR` when that variable is set and `~/.claude` otherwise. This skill calls it `<config>`, and the user sheet is `<config>/pstack-models.md`. A project sheet, `.claude/pstack-models.md` at the repository root (`git rev-parse --show-toplevel`; outside a repository, the directory Claude Code starts in), is committed with the repository and replaces the user sheet in that project. The session hook reads it whenever it exists. The model rows defer to it through the line step 6 writes under its heading, so a hand-written project sheet needs that line too. Claude Code has no auto-applied "rules" mechanism like Cursor's `.mdc`, so inclusion is explicit: the user adds a line to `<config>/CLAUDE.md` such as:
+
+```text
+@<config>/pstack-models.md
+```
+
+with `<config>` written as the resolved path, so the file is loaded as context for every session. A project sheet loads from `@.claude/pstack-models.md` in the `CLAUDE.md` at the repository root.
 
 ## Steps
 
 ### 1. Detect available models
 
-Enumerate the model slugs you can pass to a `Task` subagent in this session. That is the dependable source. If Cursor also exposes a models API or CLI that lists the user's entitled models, prefer it for completeness. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs.
+Enumerate the model names the `Agent` tool's `model` parameter accepts in this session. That is the dependable source. On Claude Code they are the family names listed in [Models](#models) below, each running that family's current model, and a full model ID is rejected. The default panel is listed there too. The panel is chosen for cross-family diversity. Ask the user to confirm or paste any additional slugs they want available. Never write a real slug you have not confirmed is available. Then detect external seats: run the check and the model listing in [external seats](../poteto-mode/references/external-seats.md) for the other vendor's CLI, and offer each model that passes as `codex:<model>` or `claude:<model>` for the panel roles only (arena runners, arena cross-judge pool, interrogate reviewers, thermos reviewers). The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs. Both mean the role runs on the parent session's model, which the `Agent` call expresses by omitting `model`.
 
 ### 2. Load current state
 
-The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `how critics`, is from a retired role. Drop it.
+On Claude Code, first ask whether to configure the user sheet, for every project, or the project sheet, for this repository on any machine. The rest of the steps use the chosen sheet.
 
-### 3. Budget, map, and confirm
+The default role-to-model mapping is the rule shape shown in the Write the override sheet step below. If the current runtime's sheet already exists, read it and treat its values as the current choices. Otherwise start from those defaults. A line whose role is not in that shape, such as `how critics`, `architect runners`, `reflect tooling`, or `why investigators`, is from a retired role. Drop it. An older sheet may name full model IDs that start with `claude-`, which the `Agent` tool rejects. Replace each with its family name, the word after `claude-`.
 
-**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.
+### 3. Map and confirm
 
-- `unlimited — max reasoning`
-- `large — xhigh reasoning`
-- `medium — high reasoning`
-- `small — medium reasoning`
+Show every role with its current model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped or rewrote. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` as the options. Prefer `AskUserQuestion` over free text. For panel roles (arena runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
 
-**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited`, `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `max`, `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max`. Grok slugs top out at `xhigh`, so under `unlimited` the fallback puts Grok at `xhigh` and keeps `grok-4.7-xhigh-fast` as it is. `large` keeps both defaults. `small` turns them into `claude-opus-5-5-medium` and `grok-4.7-medium-fast`.
+Then ask for the default reasoning effort, the `default effort` line. It is `session`, which keeps the parent session's effort, or one of the levels in [Models](#models). Start from the default listed there. Every role value without a suffix runs at it. Then ask whether any role should run at another level. A role value may carry one after its slug, as in `<slug> @xhigh`; panel entries take their own, as in `<slug> @xhigh, <slug> @max`. Each level is passed as the dispatch's effort, so the choice holds without changing the session. Leave the suffix off for the default effort.
 
-**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
+### 4. Choose whether the session hook routes tasks
 
-### 4. Validate
+On Claude Code, the plugin's `SessionStart` hook injects the poteto-mode mandate on startup, resume, clear, and compact. Ask whether to keep the hook. The default is on. The answer is the `session hook` line in the current runtime's sheet: `on` or `off`. With no sheet or no line, the hook injects. The line is inert on other runtimes without a pstack routing hook. An environment that sets `PSTACK_SESSION_HOOK=off` keeps the hook off whatever the sheet says. A Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`) starts with an empty home, so a user sheet written there does not reach the next session. To keep the hook off there, tell the user to set `PSTACK_SESSION_HOOK=off` in the cloud environment's settings or to commit a project sheet.
 
-Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
+### 5. Validate
 
-### 5. Write the rule
+Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. An external seat passes when step 1 detected it and its role is a panel role. Validate the slug without any `@<level>` suffix, and the level against the effort levels in [Models](#models). The `default effort` value is one of those levels or `session`. If a chosen real slug or level is not available, stop and ask again.
 
-Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, a `# budget` line with the chosen label and its target effort, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
+### 6. Write the override sheet
 
-```
----
-description: pstack per-role model choices (overrides skill defaults)
-alwaysApply: true
----
-# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
-# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
-# budget: large (xhigh)
-feature, refactoring: grok-4.7-xhigh-fast
-bug-fix: grok-4.7-xhigh-fast
-perf-issue: grok-4.7-xhigh-fast
-hillclimb: grok-4.7-xhigh-fast
-judgment and prose: claude-opus-5-5-xhigh
-hardest tasks: claude-opus-5-5-xhigh
-how explorer: grok-4.7-xhigh-fast
-how explainer: claude-opus-5-5-xhigh
-why investigators: grok-4.7-xhigh-fast
-why synthesizer: claude-opus-5-5-xhigh
-reflect tooling: grok-4.7-xhigh-fast
-reflect judgment, divergent, synthesizer: claude-opus-5-5-xhigh
-arena runners: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
-arena cross-judge pool: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
-swarm workers: grok-4.7-xhigh-fast
-architect runners: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
-interrogate reviewers: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
+Write the current runtime's sheet with the shape below. Overwrite the whole file so re-runs stay idempotent. A project sheet also gets this line under its heading, so a session that loads both sheets knows which one counts: `This project's sheet. In this repository it replaces the user's pstack-models.md; ignore that sheet's lines.`
+
+```markdown
+# pstack model configuration
+
+Per-role model overrides for pstack skills. Each pstack SKILL.md names its defaults in a Models section; the values here override those defaults. Delete a line to fall back to the skill default. A value of `inherit-parent` or `auto` runs that role on the parent session's model (the `Agent` call omits `model`); an alias entry in a panel list still counts toward that panel's fan-out. A model may carry a reasoning effort, as in `opus @xhigh` (levels: low, medium, high, xhigh, max); the role's subagent then runs at that level, each entry of a panel list on its own. `default effort` sets the level for a value without one; `session` uses the runtime's platform mapping to start from the parent session's effort. On Codex this requires active-turn metadata or an explicit effort choice. `session hook: off` stops the supported runtime's pstack routing hook from injecting the poteto-mode mandate; any other value, or no line, leaves it on unless the environment sets `PSTACK_SESSION_HOOK=off`.
+
+feature, refactoring: sonnet
+bug-fix: opus
+perf-issue: opus
+hillclimb: opus
+judgment and prose: opus
+strongest judgment: fable
+arena runners: opus, fable, codex:sol, codex:astra
+arena cross-judge pool: codex:astra, codex:sol, fable, opus
+swarm workers: opus
+interrogate reviewers: opus, fable, codex:sol, codex:astra
+thermos reviewers: opus
+no-comments reviewer: opus
+
+default effort: session
+session hook: on
 ```
 
-### 6. Confirm
+### 7. Wire it in
 
-Tell the user the rule was written and that it applies to new sessions. Re-running this skill updates it.
+On Claude Code, if `<config>/CLAUDE.md` does not already include `<config>/pstack-models.md`, append an `@` line naming the sheet's resolved path, such as `@~/.claude/pstack-models.md`, so the model rows load on every session. For a project sheet, append `@.claude/pstack-models.md` to the `CLAUDE.md` at the repository root instead, if it is not there, and tell the user to commit both files.
 
-### 7. Offer a verification skill (optional)
+### 8. Confirm
 
-Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /create-verification-skill." On yes, invoke `/create-verification-skill` (resolves wherever pstack is installed: workspace, user, or plugin). On no, move on without pushing.
+Tell the user where the override was written, how its model rows load, and whether the plugin hook is on. When `PSTACK_SESSION_HOOK` is `off` in the environment, say that it keeps the hook off over the sheet. Re-running this skill updates the override sheet.
 
-### 8. Offer a formal verification skill (optional)
+### 9. Offer a verification skill (optional)
 
-Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with /create-formal-verification-skill." On yes, invoke `/create-formal-verification-skill` (resolves wherever pstack is installed: workspace, user, or plugin). On no, move on without pushing.
+Check whether the project has a way to drive the real app for proof (a project `verify` or `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /create-verification-skill." On yes, invoke [`/create-verification-skill`](../create-verification-skill/SKILL.md). On no, move on without pushing.
+
+### 10. Offer a formal verification skill (optional)
+
+Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with /create-formal-verification-skill." On yes, invoke [`/create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md). On no, move on without pushing.
+
+## Models
+
+Stamped from `plugins/pstack/models.json` (edit there, rerun `tools/generate.mjs`).
+
+- Available Claude models: `opus`, `fable`, `sonnet`, `haiku`
+- Default panel: `opus`, `fable`, `codex:sol`, `codex:astra`
+- Reasoning effort levels: `low`, `medium`, `high`, `xhigh`, `max`
+- Default reasoning effort: `session`
+- Single-role default: `opus`

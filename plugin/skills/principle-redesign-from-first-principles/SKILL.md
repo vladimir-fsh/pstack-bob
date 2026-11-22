@@ -1,10 +1,8 @@
 ---
 name: principle-redesign-from-first-principles
 description: "Apply when integrating a new requirement into an existing design."
-disable-model-invocation: true
+user-invocable: false
 ---
-
-Before following these instructions, read [the pstack-bob adapter](../../docs/harness/bob.md) once per session.
 
 # Redesign From First Principles
 

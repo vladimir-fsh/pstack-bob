@@ -1,10 +1,8 @@
 ---
 name: principle-guard-the-context-window
 description: "Apply when context is filling up: large outputs, long files, repeated reads, fan-out planning. Route bulk to subagents; keep summaries in the main thread, not raw payloads."
-disable-model-invocation: true
+user-invocable: false
 ---
-
-Before following these instructions, read [the pstack-bob adapter](../../docs/harness/bob.md) once per session.
 
 # Guard the Context Window
 

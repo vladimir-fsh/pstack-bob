@@ -1,10 +1,8 @@
 ---
 name: principle-never-block-on-the-human
 description: "Apply when tempted to ask 'should I do X?' on reversible work."
-disable-model-invocation: true
+user-invocable: false
 ---
-
-Before following these instructions, read [the pstack-bob adapter](../../docs/harness/bob.md) once per session.
 
 # Never Block on the Human
 

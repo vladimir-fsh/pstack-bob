@@ -1,78 +1,88 @@
 # pstack-bob
 
-[pstack](https://github.com/cursor/plugins/tree/main/pstack) workflows for Codex and Claude Code, with independent Codex, Claude, and Grok review seats. The original playbooks stay upstream; a small adapter maps tools, model routing, and configuration to the current host.
+[pstack](https://github.com/cursor/plugins/tree/main/pstack) for Claude Code and
+Codex, where a review panel can include the other vendor's model. From Claude
+Code, GPT runs through Codex CLI. From Codex, Claude runs through Claude Code
+CLI.
 
-Codex can call Claude Code, Claude Code can call Codex, and either can call Grok through Cursor CLI. Review reports identify each seat, failed calls, disagreements, and reproduced findings. Repeating one model does not count as different model families.
+It is [michael-denyer/pstack-claude](https://github.com/michael-denyer/pstack-claude)
+at a pinned commit, plus a short list of edits. That port already translates
+pstack for both hosts and tracks Cursor's upstream, so this repository carries
+only the difference.
+
+## What it adds
+
+An **external seat** is a panel entry written `codex:<model>` or
+`claude:<model>`. It runs as a background CLI process in place of a native
+subagent, read-only or inside its own worktree.
+
+| Role | Default from Claude Code |
+| --- | --- |
+| `arena runners` | `opus`, `fable`, `codex:sol`, `codex:astra` |
+| `arena cross-judge pool` | `codex:astra`, `codex:sol`, `fable`, `opus` |
+| `interrogate reviewers` | `opus`, `fable`, `codex:sol`, `codex:astra` |
+| `thermos reviewers` | `opus` |
+
+From Codex the same defaults run Astra and Sol natively and add `claude:opus`
+and `claude:fable`. A seat whose CLI is missing or logged out is dropped and
+named in the output. Its work never reruns on a host model under its name.
+`setup-pstack` changes any of this.
+
+The rules live in
+[external seats](overlay/skills/poteto-mode/references/external-seats.md).
 
 ## Install
 
-Once this repository is published at `vladimir-fsh/pstack-bob`:
+Claude Code:
 
-```sh
-# Codex
-codex plugin marketplace add vladimir-fsh/pstack-bob
-codex plugin add pstack-bob@pstack-bob
-
-# Claude Code
+```bash
 claude plugin marketplace add vladimir-fsh/pstack-bob
-claude plugin install pstack-bob@pstack-bob --scope user
+claude plugin install pstack@pstack-bob --scope user
 ```
 
-For local development, replace `vladimir-fsh/pstack-bob` with the absolute path to this checkout. Keep only one pstack variant enabled in each host to avoid duplicate skills. Start a new session after changing the installation.
+Codex:
 
-In Codex, select the `pstack-bob` plugin's `poteto-mode` or `interrogate` skill. In Claude Code, use `/pstack-bob:poteto-mode <task>` or `/pstack-bob:interrogate <scope>`.
+```bash
+codex plugin marketplace add vladimir-fsh/pstack-bob
+codex plugin add pstack@pstack-bob
+```
 
-Authenticate the CLIs needed by your panel: `codex`, `claude`, and Cursor's `agent`. A model listing does not prove inference access. Native subagents are preferred for the host's own models. External seats use CLI calls with task-scoped permissions and isolated workspaces when they need to write. Failed seats remain visible in the report.
+Enable one pstack build per host, since they share skill names. In Codex, trust
+the plugin's hook through `/hooks`. Start a new session, then run
+`setup-pstack`.
 
-## Configuration in Git
+External seats need the other CLI logged in: `codex login` for Claude Code,
+`claude auth login` for Codex.
 
-- [config/models](config/models) holds shared defaults. Edit it here, regenerate, and commit the result.
-- A project's `.pstack-bob/models` overrides matching roles for that project. `/setup-pstack` writes there; commit it with the project.
-- No model preferences live in a home-directory config or a plugin cache.
-
-The default review/design panel pins GPT-6 Astra, Claude Opus 5.5, and Grok 4.7. Models and effort are passed explicitly; session-default aliases are opt-in. Other role defaults remain upstream. Model changes use detected IDs and preserve the selected family; a failed external seat is not silently replaced by the coordinator.
-
-## Source and generated files
+## How it stays current
 
 | Path | Purpose |
 | --- | --- |
-| `upstream.json` | Exact upstream commit, source subtree, and upstream version |
-| `adapters/` | Our host and multi-model instructions; edit these |
-| `config/models` | Shared model choices |
-| `package.json` | Our plugin name and release version; no npm dependencies |
-| `scripts/sync_upstream.py` | Export the pinned upstream subtree and apply the small adaptation |
-| `plugin/` | Generated, committed installation artifact for both hosts |
+| `upstream.json` | The pinned commit of the port, and the folders left out |
+| `patches.json` | Edits to upstream text, each with its reason |
+| `overlay/` | Files added beside upstream's |
+| `VERSION` | This plugin's version |
+| `scripts/build.py` | Renders `plugin/` from the four above |
+| `plugin/` | The generated plugin both hosts install |
 
-The generator preserves upstream files, adds an adapter pointer to skill/persona entrypoints, copies our adapters/config, and writes the plugin manifests. It does not rewrite upstream playbooks. Upstream's MIT license remains in `plugin/LICENSE`; this repository preserves the license too. The generated artifact is committed because GitHub plugin installation does not run a build step.
+Each patch names an anchor sentence that must occur exactly once. When upstream
+rewords one, the build fails and names the rule.
 
-## Regenerate and update
+A daily workflow moves the pin to upstream's `main`, renders again, and opens a
+pull request. A failed run means a patch needs rewording. The workflow needs
+"Allow GitHub Actions to create and approve pull requests" under the
+repository's Actions settings.
 
-Requires Git and Python 3.9+. No package installation is needed. Start with a clean `plugin/`; the generator refuses to overwrite uncommitted changes there.
-
-```sh
-# Rebuild exactly the pinned upstream version after editing adapters/config.
-python3 scripts/sync_upstream.py
-
-# Check the generated artifact without modifying it.
-python3 scripts/sync_upstream.py --check
-
-# Import a newer upstream version, resolving main to an exact commit in the lock.
-python3 scripts/sync_upstream.py --ref main
-git diff --stat
-git diff -- upstream.json plugin/
+```bash
+python3 scripts/build.py            # render plugin/ from the pin
+python3 scripts/build.py --check    # fail when plugin/ is stale
+python3 scripts/build.py --ref main # move the pin and render
 ```
 
-Review the upstream changes and adapter compatibility. Commit the reviewed import. For a release, bump our `package.json` version, regenerate, validate, and commit before pushing. Our version is independent of the upstream version. Updating upstream never publishes a release or modifies installed plugins automatically.
+Requires Git and Python 3.12 or later.
 
-For an existing upstream checkout or offline work, add `--source /absolute/path/to/cursor-plugins`. Without `--ref`, its working tree is ignored and the pinned commit is exported. A new source layout or adapter filename collision fails before replacing the installed artifact.
+## License
 
-## Validation
-
-```sh
-python3 -m unittest discover -s tests -v
-python3 scripts/sync_upstream.py --check
-claude plugin validate .
-claude plugin validate plugin
-```
-
-The offline regression tests exercise repeatable generation, changed upstream content, drift detection, and preservation of local edits. CI also regenerates from the pinned upstream commit. For a routing change, separately run a small real task through each configured backend and verify the result. Structural checks alone do not prove authentication, model availability, runtime behavior, or PR readiness.
+[MIT](LICENSE). Original pstack © Lauren Tan. Port © Michael Denyer. The
+bundled cursor-team-kit and thermos skills © Cursor, under the notices in
+`plugin/skills/poteto-mode/references/licenses/`.

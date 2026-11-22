@@ -1,9 +1,12 @@
-# pstack-bob development
+# pstack-bob
 
-Edit `adapters/`, `config/models`, and `scripts/`. `plugin/` is generated and committed for direct plugin installation; regenerate it instead of editing it by hand. Keep upstream playbooks unchanged unless the task explicitly calls for a workflow change.
+`plugin/` is generated. Change behavior in `patches.json` (edits to upstream
+text) or `overlay/` (files added beside it), then run `python3 scripts/build.py`
+and commit the result with the source change.
 
-`upstream.json` pins the official `cursor/plugins` source. Update it through `scripts/sync_upstream.py --ref <commit-or-ref>` and inspect the generated diff. Bump `package.json` for a published plugin release, then regenerate its manifests.
+Each `patches.json` rule names an anchor that must occur exactly once in its
+upstream file, so keep anchors short and literal, and give each rule a `why`.
+Prefer an `after` rule, which adds a sentence, over a `replace` rule.
 
-Run `python3 -m unittest discover -s tests -v` and `python3 scripts/sync_upstream.py --check`; use `--source <upstream-checkout>` for offline checks. Validate marketplace and plugin manifests with `claude plugin validate .` and `claude plugin validate plugin` when the CLI is available.
-
-Model preferences belong in Git: shared defaults in `config/models`, project overrides in the task repository's `.pstack-bob/models`. Keep machine paths, credentials, and personal authentication state out of the plugin.
+Raise `VERSION` by hand for a change of ours. `scripts/build.py --ref main`
+raises it when it moves the pin.

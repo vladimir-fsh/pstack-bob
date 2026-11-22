@@ -3,11 +3,15 @@
   "owner": {
     "name": "vladimir-fsh"
   },
+  "metadata": {
+    "description": "pstack for Claude Code and Codex with cross-vendor panels."
+  },
   "plugins": [
     {
-      "name": "pstack-bob",
+      "name": "pstack",
       "source": "./plugin",
-      "description": "pstack workflows for Codex and Claude with independent multi-model reviews."
+      "description": "pstack workflows whose arena, interrogate, and thermos panels can run the other vendor's model through Codex CLI or Claude Code CLI.",
+      "category": "productivity"
     }
   ]
 }

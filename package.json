@@ -1,8 +1,0 @@
-{
-  "name": "pstack-bob",
-  "version": "0.1.1",
-  "private": true,
-  "description": "pstack for Codex and Claude Code with independent cross-model reviews.",
-  "license": "MIT",
-  "repository": "https://github.com/vladimir-fsh/pstack-bob"
-}

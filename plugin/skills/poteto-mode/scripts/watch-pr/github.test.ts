@@ -22,6 +22,7 @@ import {
   passingCheck,
   pendingCheck,
 } from "./fakes.test-helper.ts";
+import type { CheckRead, ReportedChecks } from "./types.ts";
 import { parsePrNumber } from "./types.ts";
 
 const context = {
@@ -30,12 +31,18 @@ const context = {
   number: parsePrNumber(42),
 };
 
+function reported(read: CheckRead): ReportedChecks {
+  if (read.kind !== "reported")
+    throw new Error(`expected checks: ${read.kind}`);
+  return read;
+}
+
 describe("checks fallback chain", () => {
   it("uses a non-empty fast-path result without a rollup query", async () => {
     const reader = fakeReader({
       fastPath: { kind: "checks", checks: [passingCheck("fast")] },
     });
-    const read = await resolveChecks(reader, context);
+    const read = reported(await resolveChecks(reader, context));
     expect(read.source).toBe("gh-pr-checks");
     expect(read.checks.map((check) => check.name)).toEqual(["fast"]);
     expect(reader.calls).toEqual(["checksFastPath"]);
@@ -45,11 +52,11 @@ describe("checks fallback chain", () => {
     const reader = fakeReader({
       fastPath: { kind: "unusable", exitCode: 8, stderr: "" },
       rollupPages: [
-        { checks: [passingCheck("first")], endCursor: "next" },
-        { checks: [failedCheck("second")], endCursor: null },
+        { kind: "contexts", checks: [passingCheck("first")], endCursor: "next" },
+        { kind: "contexts", checks: [failedCheck("second")], endCursor: null },
       ],
     });
-    const read = await resolveChecks(reader, context);
+    const read = reported(await resolveChecks(reader, context));
     expect(read.source).toBe("graphql-rollup");
     expect(read.checks.map((check) => check.name)).toEqual(["first", "second"]);
     expect(reader.calls).toEqual([
@@ -62,9 +69,9 @@ describe("checks fallback chain", () => {
   it("falls back when valid fast-path JSON represented an empty list", async () => {
     const reader = fakeReader({
       fastPath: { kind: "checks", checks: [] },
-      rollupPages: [{ checks: [pendingCheck("fallback")], endCursor: null }],
+      rollupPages: [{ kind: "contexts", checks: [pendingCheck("fallback")], endCursor: null }],
     });
-    expect((await resolveChecks(reader, context)).checks[0].name).toBe(
+    expect(reported(await resolveChecks(reader, context)).checks[0].name).toBe(
       "fallback"
     );
     expect(reader.calls).toEqual(["checksFastPath", "checkRollupPage:null"]);
@@ -182,6 +189,7 @@ describe("closed enum parsing", () => {
     mergeStateStatus: "CLEAN",
     reviewDecision: "APPROVED",
     headRefOid: "head",
+    baseRef: { target: { oid: "base" } },
     headRefName: "feature",
     baseRefName: "main",
     state: "OPEN",
@@ -198,11 +206,10 @@ describe("closed enum parsing", () => {
     ).toBe("CONFLICTING");
   });
 
-  it("reads gh's empty reviewDecision as no decision rather than a parse failure", () => {
-    expect(
+  it("rejects an empty reviewDecision like any other unknown enum value", () => {
+    expect(() =>
       parsePullRequest({ ...rawPullRequest, reviewDecision: "" }, context)
-        .reviewDecision
-    ).toBeNull();
+    ).toThrow(WatcherQueryError);
   });
 
   it("still rejects an unknown reviewDecision", () => {
@@ -222,7 +229,7 @@ describe("closed enum parsing", () => {
       expect(error).toBeInstanceOf(WatcherQueryError);
       if (!(error instanceof WatcherQueryError)) throw error;
       expect(error.failure).toMatchObject({
-        kind: "missing-key",
+        kind: "missing-field",
         retryable: true,
         rawValue: '"FUTURE_STATE"',
       });
@@ -418,40 +425,40 @@ describe("context and stack discovery", () => {
   });
 
   it("orders the connected stack bottom-to-top", () => {
-    const ordered = orderStack(context, [
+    const ordered = orderStack(context, "main", [
       {
         number: parsePrNumber(41),
+        headRepository: { owner: "owner", repo: "repo" },
         headRefName: "base-feature",
-        isCrossRepository: false,
         baseRefName: "main",
       },
       {
         number: context.number,
+        headRepository: { owner: "owner", repo: "repo" },
         headRefName: "feature",
-        isCrossRepository: false,
         baseRefName: "base-feature",
       },
       {
         number: parsePrNumber(43),
+        headRepository: { owner: "owner", repo: "repo" },
         headRefName: "upstack",
-        isCrossRepository: false,
         baseRefName: "feature",
       },
     ]);
     expect(ordered.map((item) => Number(item.number))).toEqual([41, 42, 43]);
   });
   it("does not use a fork's same-named head as a stack parent", () => {
-    const ordered = orderStack(context, [
-      { number: parsePrNumber(41), headRefName: "base-feature", baseRefName: "main", isCrossRepository: true },
-      { number: context.number, headRefName: "feature", baseRefName: "base-feature", isCrossRepository: false },
+    const ordered = orderStack(context, "main", [
+      { number: parsePrNumber(41), headRefName: "base-feature", baseRefName: "main", headRepository: { owner: "contributor", repo: "repo" } },
+      { number: context.number, headRefName: "feature", baseRefName: "base-feature", headRepository: { owner: "owner", repo: "repo" } },
     ]);
     expect(ordered.map((item) => Number(item.number))).toEqual([42]);
   });
 
   it("does not attach upstream branch children to a fork head", () => {
-    const ordered = orderStack(context, [
-      { number: context.number, headRefName: "feature", baseRefName: "main", isCrossRepository: true },
-      { number: parsePrNumber(43), headRefName: "upstack", baseRefName: "feature", isCrossRepository: false },
+    const ordered = orderStack(context, "main", [
+      { number: context.number, headRefName: "feature", baseRefName: "main", headRepository: { owner: "contributor", repo: "repo" } },
+      { number: parsePrNumber(43), headRefName: "upstack", baseRefName: "feature", headRepository: { owner: "owner", repo: "repo" } },
     ]);
     expect(ordered.map((item) => Number(item.number))).toEqual([42]);
   });
@@ -459,9 +466,9 @@ describe("context and stack discovery", () => {
   it("terminates when an unrelated fork opens main against main", () => {
     // Bound the subprocess so this regression reports a failure instead of hanging the suite.
     const program = `import { orderStack } from ${JSON.stringify(import.meta.dir + "/github.ts")};
-      console.log(JSON.stringify(orderStack(${JSON.stringify(context)}, [
-        { number: 41, headRefName: "main", baseRefName: "main", isCrossRepository: true },
-        { number: 42, headRefName: "feature", baseRefName: "main", isCrossRepository: false }
+      console.log(JSON.stringify(orderStack(${JSON.stringify(context)}, "main", [
+        { number: 41, headRefName: "main", baseRefName: "main", headRepository: { owner: "contributor", repo: "repo" } },
+        { number: 42, headRefName: "feature", baseRefName: "main", headRepository: { owner: "owner", repo: "repo" } }
       ])));`;
     const child = spawnSync(process.execPath, ["-e", program], { encoding: "utf8", timeout: 2000 });
     expect(child.error).toBeUndefined();
@@ -474,13 +481,14 @@ describe("context and stack discovery", () => {
     try {
       writeFileSync(join(directory, "gh"), `#!/bin/sh
 case "$*" in
-  *number,headRefName,baseRefName,isCrossRepository*) ;;
+  *number,headRefName,baseRefName,headRepository,headRepositoryOwner*) ;;
   *) exit 2 ;;
 esac
-printf '%s\\n' '[{"number":42,"headRefName":"feature","baseRefName":"main","isCrossRepository":true}]'
+printf '%s\\n' '[{"number":42,"headRefName":"feature","baseRefName":"main","headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"contributor"}}]'
 `, { mode: 0o755 });
       const program = `import { GhGitHubReader } from ${JSON.stringify(import.meta.dir + "/github.ts")};
-        console.log(JSON.stringify(await new GhGitHubReader().openPullRequests({ owner: "owner", repo: "repo" })));`;
+        import { WatchDeadline } from ${JSON.stringify(import.meta.dir + "/deadline.ts")};
+        console.log(JSON.stringify(await new GhGitHubReader(new WatchDeadline(0, Date.now)).openPullRequests({ owner: "owner", repo: "repo" })));`;
       const child = spawnSync(process.execPath, ["-e", program], {
         encoding: "utf8", timeout: 2000,
         env: { ...process.env, PATH: directory + ":" + process.env.PATH },
@@ -488,7 +496,7 @@ printf '%s\\n' '[{"number":42,"headRefName":"feature","baseRefName":"main","isCr
       expect(child.error).toBeUndefined();
       expect(child.status).toBe(0);
       expect(JSON.parse(child.stdout)).toEqual([
-        { number: 42, headRefName: "feature", baseRefName: "main", isCrossRepository: true },
+        { number: 42, headRefName: "feature", baseRefName: "main", headRepository: { owner: "contributor", repo: "repo" } },
       ]);
     } finally {
       rmSync(directory, { recursive: true, force: true });

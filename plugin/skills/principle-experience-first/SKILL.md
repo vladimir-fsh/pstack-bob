@@ -1,10 +1,8 @@
 ---
 name: principle-experience-first
 description: "Apply when product, UX, or feature-scope tradeoffs come up. Choose user delight over implementation convenience; ship fewer polished features over more rough ones."
-disable-model-invocation: true
+user-invocable: false
 ---
-
-Before following these instructions, read [the pstack-bob adapter](../../docs/harness/bob.md) once per session.
 
 # Experience First
 
