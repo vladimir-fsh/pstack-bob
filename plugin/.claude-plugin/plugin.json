@@ -1,7 +1,7 @@
 {
   "name": "pstack",
   "displayName": "pstack (Claude Code port)",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "If you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence. Ported from cursor/plugins/pstack to Claude Code. Original pstack by Lauren Tan (poteto). Started from michael-denyer/pstack-claude 0.9.146 and synced with cursor/plugins. External seats: panels can run the other vendor's model through Codex CLI or Claude Code CLI.",
   "author": {
     "name": "Michael Denyer",
